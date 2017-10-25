@@ -17,6 +17,10 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.InlineKeyboardButtons;
 using Telegram.Bot.Types.ReplyMarkups;
+using unirest_net.http;
+using VoiceRSS_SDK;
+using Google.Apis.YouTube.v3;
+using Google.Apis.Services;
 
 namespace MoreBot
 {
@@ -25,15 +29,16 @@ namespace MoreBot
         private static readonly TelegramBotClient Bot = new TelegramBotClient("474545390:AAHU8XYrFNbsFPMpIklVtqk9NSiCmG3-Fjk");
         private static readonly Random random = new Random();
         private static readonly DateTime runTime = DateTime.Now;
-        private static readonly StreamWriter file = new StreamWriter("d:\\history.txt");
-        private static int answerPosibility = 1;
+        private static readonly StreamWriter file = new StreamWriter("e:\\history.txt");
+        private static int answerPosibility = 2;
         private static int huiPosibility = 1;
-        private static int imagePosibility = 2;
-        private static int stickerPosibility = 1;
+        private static int imagePosibility = 5;
+        private static int stickerPosibility = 2;
         private static bool alive = true;
         private static readonly List<Voice> VoiceList = new List<Voice>();
         private static void Main()
         {
+            Console.OutputEncoding = Encoding.UTF8;
             Console.InputEncoding = Encoding.Unicode;
             Bot.OnMessage += BotOnMessage;
             Bot.OnCallbackQuery += OnBotCallbackQuery;
@@ -83,7 +88,7 @@ namespace MoreBot
 
         private static void OnText(MessageEventArgs e)
         {
-            Console.WriteLine(e.Message.Date + "  |  " + e.Message.Type + " from " + e.Message.From.FirstName + "  " + e.Message.From.LastName);
+            Console.WriteLine(e.Message.Date + "  |  " + e.Message.Text + " from " + e.Message.From.FirstName + "  " + e.Message.From.LastName);
             file.WriteLine(e.Message.Text + "  |  " + e.Message.Date + " | " + e.Message.From.FirstName + "  " + e.Message.From.LastName + " = " + e.Message.From.Id);
             if (e.Message.Text.ToLower().Contains("гріша привіт"))
             {
@@ -115,7 +120,18 @@ namespace MoreBot
                     var damn = GetDamn(name).Result;
                     if (!string.IsNullOrEmpty(damn))
                     {
-                        Bot.SendTextMessageAsync(e.Message.Chat.Id, damn);
+                        //Bot.SendTextMessageAsync(e.Message.Chat.Id, damn);
+                        using (var stream = new MemoryStream(GetSpeach(damn).Result))
+                        {
+                            stream.Seek(0, SeekOrigin.Begin);
+                            var x = Bot.SendAudioAsync(e.Message.Chat.Id, new FileToSend("speech.mp3", stream), damn, 10, "Гріша", damn);
+
+
+                            while (x.Status == TaskStatus.WaitingForActivation)
+                            {
+                                Thread.Sleep(1000);
+                            }
+                        }
                     }
                 }
             }
@@ -148,6 +164,37 @@ namespace MoreBot
                 }
 
             }
+            else if (e.Message.Text.ToLower().Split(' ').Contains("скажи"))
+            {
+                var text = string.Join(" ", e.Message.Text.ToLower().Split(' ').Where(x => x != "скажи"));
+                using (var stream = new MemoryStream(GetSpeach(text).Result))
+                {
+                    stream.Seek(0, SeekOrigin.Begin);
+                    var x = Bot.SendAudioAsync(e.Message.Chat.Id, new FileToSend("speech.mp3", stream), "", 10, "Гріша", text);
+
+
+                    while (x.Status == TaskStatus.WaitingForActivation)
+                    {
+                        Thread.Sleep(1000);
+                    }
+                }
+            }
+            else if ((e.Message.Text.ToLower().Split(' ').Contains("випадковий") || 
+                e.Message.Text.ToLower().Split(' ').Contains("рандомний")) && 
+                e.Message.Text.ToLower().Split(' ').Contains("відосік"))
+            {
+                var text = string.Join(" ", e.Message.Text.ToLower().Split(' ').Where(x => x != "випадковий" && x != "відосік" && x != "рандомний"));
+                Bot.SendTextMessageAsync(e.Message.Chat.Id, GetRandomVideo(text).Result);
+            }
+            else if (e.Message.Text.ToLower().Split(' ').Contains("відосік"))
+            {
+                var text = string.Join(" ", e.Message.Text.ToLower().Split(' ').Where(x => x != "відосік"));
+                Bot.SendTextMessageAsync(e.Message.Chat.Id, GetVideo(text).Result);
+            }            
+            else if (e.Message.Text.ToLower().Contains("погода"))
+            {
+                Bot.SendTextMessageAsync(e.Message.Chat.Id, GetWeather().Result);
+            }
             else if (e.Message.Text.ToLower().EndsWith("триста") || e.Message.Text.ToLower().EndsWith("300"))
             {
                 Bot.SendTextMessageAsync(e.Message.Chat.Id, "отсоси у тракториста");
@@ -155,8 +202,8 @@ namespace MoreBot
             else if (e.Message.Text.ToLower().EndsWith(" ="))
             {
                 Bot.SendTextMessageAsync(
-                    e.Message.Chat.Id, 
-                    GetCalc(e.Message.Text.ToLower().Substring(0, e.Message.Text.Length-2)).Result
+                    e.Message.Chat.Id,
+                    GetCalc(e.Message.Text.ToLower().Substring(0, e.Message.Text.Length - 2)).Result
                     );
             }
             else if (e.Message.Text.ToLower().EndsWith("совпадение?") || e.Message.Text.ToLower().EndsWith("співпадіння?"))
@@ -171,10 +218,23 @@ namespace MoreBot
             {
                 Bot.SendTextMessageAsync(e.Message.Chat.Id, "Лизав мужик пизду.");
             }
-            else if (e.Message.Text.ToLower().Contains("випадковий відосік"))
+
+            else if (e.Message.Text.ToLower().Split(' ').Contains("gif"))
             {
-                Bot.SendTextMessageAsync(e.Message.Chat.Id, GetRandomVideo().Result);
+                var tag = string.Join(" ", e.Message.Text.ToLower().Split(' ').Where(x => x != "gif"));
+                using (var stream = new MemoryStream(GetGif(tag).Result))
+                {
+                    stream.Seek(0, SeekOrigin.Begin);
+                    var x = Bot.SendDocumentAsync(e.Message.Chat.Id, new FileToSend("gif.gif", stream));
+
+
+                    while (x.Status == TaskStatus.WaitingForActivation)
+                    {
+                        Thread.Sleep(1000);
+                    }
+                }
             }
+
             else if (e.Message.Text.ToLower().Contains("коте"))
             {
                 if (e.Message.Text.ToLower().Split(" ,.&!?-0123456789*-+//_^:;\"\'".ToCharArray()).Any(x => x == "коте"))
@@ -197,12 +257,12 @@ namespace MoreBot
                         {
                             Thread.Sleep(1000);
                         }
-                    }   
+                    }
                 }
                 else
                 {
                     Bot.SendTextMessageAsync(e.Message.Chat.Id, "Хуй тобі а не кота, розумний самий? хоч кота, пиши коте окремо і не вийобуйся.");
-                }           
+                }
             }
             else if (e.Message.Text.ToLower().Contains("хуй"))
             {
@@ -277,15 +337,15 @@ namespace MoreBot
             else if (Can(stickerPosibility))
             {
                 var stickerSet1 = Bot.GetStickerSetAsync("More_Faces");
-                var stickerSet2 = Bot.GetStickerSetAsync("Vit2005");
                 var stickerSet3 = Bot.GetStickerSetAsync("BlueRobots");
                 var stickerSet4 = Bot.GetStickerSetAsync("Druzhko");
                 var stickerSet5 = Bot.GetStickerSetAsync("terebonk_2");
+                var stickerSet6 = Bot.GetStickerSetAsync("teadosug");
                 var stickers = stickerSet1.Result.Stickers;
-                stickers.AddRange(stickerSet2.Result.Stickers);
                 stickers.AddRange(stickerSet3.Result.Stickers);
                 stickers.AddRange(stickerSet4.Result.Stickers);
                 stickers.AddRange(stickerSet5.Result.Stickers);
+                stickers.AddRange(stickerSet6.Result.Stickers);
                 Bot.SendStickerAsync(e.Message.Chat.Id, new FileToSend(stickers[random.Next(stickers.Count)].FileId));
             }
             else if (Can(huiPosibility))
@@ -315,7 +375,7 @@ namespace MoreBot
                             if (currentVoice.IsOpen)
                             {
                                 var all = string.Format("{0} ({1})", currentVoice.Answers[num],
-                                    string.Join(", ", 
+                                    string.Join(", ",
                                         currentVoice.Votes
                                             .Where(item => item.Value == num)
                                             .Select(item => item.Key)));
@@ -341,10 +401,10 @@ namespace MoreBot
                         {
                             await Bot.EditMessageTextAsync(message.Chat.Id, currentVoice.MessageId, currentVoice.Question, Telegram.Bot.Types.Enums.ParseMode.Default, false, keyboard);
                         }
-                        catch {}
+                        catch { }
                     }
                 }
-                catch {}
+                catch { }
             }
         }
 
@@ -363,6 +423,15 @@ namespace MoreBot
             }
         }
 
+        static async Task<string> GetWeather()
+        {
+            var response = Unirest.get("https://simple-weather.p.mashape.com/weather?lat=49.233083&lng=28.468217")
+            .header("X-Mashape-Key", "uNOgVxAHRemshRiAMi6C7GQ68qR4p1dEz8jjsn5eMK4qYLUwW1")
+            .header("Accept", "text/plain")
+            .asString();
+            return response.Body;
+        }
+
         /// <param name="type">jpg, png or gif</param>
         static async Task<byte[]> GetCat(string type)
         {
@@ -373,21 +442,110 @@ namespace MoreBot
             }
         }
 
-        static async Task<string> GetRandomVideo()
+
+        static async Task<byte[]> GetGif(string tag)
         {
+            // These code snippets use an open-source library. http://unirest.io/net
+            var response = Unirest.get("https://giphy.p.mashape.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag=" + tag)
+            .header("X-Mashape-Key", "uNOgVxAHRemshRiAMi6C7GQ68qR4p1dEz8jjsn5eMK4qYLUwW1")
+            .header("Accept", "application/json")
+            .asJson<string>();
+            var json = (JObject)JsonConvert.DeserializeObject(response.Body);
+            var data = json["data"]["fixed_height_downsampled_url"].Value<string>();
             using (var client = new HttpClient())
             {
-                using (var response = await client.GetAsync("https://randomyoutube.net/api/getvid?api_token=8hfjFJWZ1RDANnyZ6d76EeDP6AOVgOT3qBk9vF1KlazNbJ5uT3jf9340kYcc"))
+                var gif = await client.GetByteArrayAsync(data);
+                return gif;
+            }
+        }
+
+        static async Task<string> GetRandomVideo(string key = null)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                using (var client = new HttpClient())
                 {
-                    using (var content = response.Content)
+                    using (var response = await client.GetAsync("https://randomyoutube.net/api/getvid?api_token=8hfjFJWZ1RDANnyZ6d76EeDP6AOVgOT3qBk9vF1KlazNbJ5uT3jf9340kYcc"))
                     {
-                        var myContent = await content.ReadAsStringAsync();
-                        var data = (JObject)JsonConvert.DeserializeObject(myContent);
-                        var vidID = data["vid"].Value<string>();
-                        return "https://www.youtube.com/watch?v=" + (vidID);
+                        using (var content = response.Content)
+                        {
+                            var myContent = await content.ReadAsStringAsync();
+                            var data = (JObject)JsonConvert.DeserializeObject(myContent);
+                            var vidID = data["vid"].Value<string>();
+                            return "https://www.youtube.com/watch?v=" + (vidID);
+                        }
                     }
                 }
             }
+            else
+            {
+                return GetVideo(key, 50, true).Result;
+            }
+
+        }
+
+        static async Task<string> GetVideo(string key, int count = 50, bool randomVideo = false)
+        {
+            string videoID;
+            var youtubeService = new YouTubeService(new BaseClientService.Initializer()
+              {
+                  ApiKey = "AIzaSyDDsOK2xmZrHAI_-DxJziwxbJ2klyZc9Hk",
+                  ApplicationName = "Grisha"
+              });
+            
+            var searchListRequest = youtubeService.Search.List("snippet");
+            searchListRequest.Q = key; // Replace with your search term.
+            searchListRequest.MaxResults = count;
+            searchListRequest.SafeSearch = SearchResource.ListRequest.SafeSearchEnum.None;
+            searchListRequest.Type = "video";
+            // Call the search.list method to retrieve results matching the specified query term.
+            var searchListResponse = await searchListRequest.ExecuteAsync();
+
+
+            if (!randomVideo)
+            {
+                if (searchListResponse.Items.Any(x => x.Snippet.Title.ToLower().Contains(key)))
+                {
+                    videoID = searchListResponse.Items.First(x => x.Snippet.Title.ToLower().Contains(key)).Id.VideoId;
+                }
+                else
+                {
+                    videoID = searchListResponse.Items[0].Id.VideoId;
+                }
+            }
+            else
+            {
+                var videos = new List<string>();
+                foreach (var searchResult in searchListResponse.Items)
+                {
+                    videos.Add(searchResult.Id.VideoId);
+                }
+                videoID =videos[random.Next(videos.Count)];
+                
+            }
+
+            return "https://www.youtube.com/watch?v=" + videoID;
+        }
+
+
+        static async Task<byte[]> GetSpeach(string text)
+        {
+            var apiKey = "0d3463c92d324c5599d1fa96e0012a47";
+            var isSSL = false;
+            var lang = Languages.Russian;
+
+            var voiceParams = new VoiceParameters(text, lang)
+            {
+                AudioCodec = AudioCodec.MP3,
+                AudioFormat = AudioFormat.Format_44KHZ.AF_44khz_16bit_stereo,
+                IsBase64 = false,
+                IsSsml = false,
+                SpeedRate = 0
+            };
+
+            var voiceProvider = new VoiceProvider(apiKey, isSSL);
+            var voice = await voiceProvider.SpeechTaskAsync<byte[]>(voiceParams);
+            return voice;
         }
 
         static async Task<string> GetCalc(string expression)
