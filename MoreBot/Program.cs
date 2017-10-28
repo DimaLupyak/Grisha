@@ -29,7 +29,7 @@ namespace MoreBot
         private static readonly TelegramBotClient Bot = new TelegramBotClient("474545390:AAHU8XYrFNbsFPMpIklVtqk9NSiCmG3-Fjk");
         private static readonly Random random = new Random();
         private static readonly DateTime runTime = DateTime.Now;
-        private static readonly StreamWriter file = new StreamWriter("e:\\history.txt");
+        private static readonly StreamWriter file = new StreamWriter("history.txt");
         private static int answerPosibility = 2;
         private static int huiPosibility = 1;
         private static int imagePosibility = 5;
