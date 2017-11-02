@@ -98,13 +98,18 @@ namespace MoreBot
 			file.WriteLine(e.Message.Text + "  |  " + e.Message.Date + " | " + e.Message.From.FirstName + "  " + e.Message.From.LastName + " = " + e.Message.From.Id);
 			if (e.Message.Text.ToLower().Contains("удали"))
 			{
-				int toRemove = int.Parse(e.Message.Text.ToLower().Substring("удали ".Length));
-				if (toRemove > 10)
+                int toRemove;
+
+                if(int.TryParse(e.Message.Text.ToLower().Substring("удали ".Length), out toRemove))
+                {
+                    return;
+                }
+
+                if (toRemove > 10)
 				{
 					await Bot.SendTextMessageAsync(e.Message.Chat.Id, "А не слішком дохуя?");
 					return;
 				}
-
 
 				var chatId = e.Message.Chat.Id;
 				var text = e.Message.Text;
