@@ -21,6 +21,8 @@ using unirest_net.http;
 using VoiceRSS_SDK;
 using Google.Apis.YouTube.v3;
 using Google.Apis.Services;
+using System.Xml.Serialization;
+using System.Xml;
 
 namespace MoreBot
 {
@@ -33,21 +35,32 @@ namespace MoreBot
     class Program
     {
         private static readonly TelegramBotClient Bot = new TelegramBotClient("474545390:AAHU8XYrFNbsFPMpIklVtqk9NSiCmG3-Fjk");
+        private static XmlSerializer VoiceSerializer;
         private static readonly Random random = new Random();
         private static readonly DateTime runTime = DateTime.Now;
         private static readonly StreamWriter file = new StreamWriter("history.txt");
+        private static readonly string voicesFileName = "voices.xml";
         private static int answerPosibility = 2;
         private static int huiPosibility = 1;
         private static int imagePosibility = 5;
         private static int stickerPosibility = 2;
         private static bool alive = true;
-        private static readonly List<Voice> VoiceList = new List<Voice>();
+
+
+        private static Settings Settings = new Settings();
         private static void Main()
         {
             Console.OutputEncoding = Encoding.UTF8;
             Console.InputEncoding = Encoding.Unicode;
             Bot.OnMessage += BotOnMessage;
             Bot.OnCallbackQuery += OnBotCallbackQuery;
+            VoiceSerializer = new XmlSerializer(typeof(Settings));
+            try
+            {
+                ReadSettings();
+            }
+            catch {}
+
             Bot.StartReceiving();
             while (true)
             {
@@ -399,8 +412,10 @@ namespace MoreBot
 
 					var isOpen = e.Message.Text.ToLower().Contains("відкрите");
 					var mess = Bot.SendTextMessageAsync(e.Message.Chat.Id, answer, Telegram.Bot.Types.Enums.ParseMode.Default, false, false, 0, keyboard).Result;
-					VoiceList.Add(new Voice(mess.MessageId, answer, variants, isOpen));
-				}
+                    Settings.VoiceList.Add(new Voice(mess.MessageId, answer, variants, isOpen));
+                    SaveSettings();
+
+                }
 				catch (Exception ex)
 				{
 					Bot.SendTextMessageAsync(e.Message.Chat.Id, "Це так не работає");
@@ -439,7 +454,7 @@ namespace MoreBot
                 {
                     int num = int.Parse(ev.CallbackQuery.Data[ev.CallbackQuery.Data.Length - 1].ToString());
                     {
-                        var currentVoice = VoiceList.First(gol => gol.MessageId == ev.CallbackQuery.Message.MessageId);
+                        var currentVoice = Settings.VoiceList.First(gol => gol.MessageId == ev.CallbackQuery.Message.MessageId);
                         var variants = currentVoice.Answers;
                         var buttons = new InlineKeyboardCallbackButton[variants.Length];
 
@@ -478,6 +493,7 @@ namespace MoreBot
                     }
                 }
                 catch { }
+                SaveSettings();
             }
         }
 
@@ -655,6 +671,22 @@ namespace MoreBot
             withSpan = withSpan.Replace("<span class=\"name\">", "");
             withSpan = withSpan.Replace("&mdash; ", "");
             return withSpan.Replace("</span>", "");
+        }
+
+        private static void SaveSettings()
+        {
+            using (FileStream fs = new FileStream(voicesFileName, FileMode.OpenOrCreate))
+            {
+                VoiceSerializer.Serialize(fs, Settings);                
+            }            
+        }
+
+        private static void ReadSettings()
+        {
+            using (FileStream fs = new FileStream(voicesFileName, FileMode.OpenOrCreate))
+            {
+                Settings = (Settings)VoiceSerializer.Deserialize(fs);                
+            }
         }
     }
 }
