@@ -34,11 +34,11 @@ namespace MoreBot
 
     class Program
     {
+        private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         private static readonly TelegramBotClient Bot = new TelegramBotClient("474545390:AAHU8XYrFNbsFPMpIklVtqk9NSiCmG3-Fjk");
         private static XmlSerializer VoiceSerializer;
         private static readonly Random random = new Random();
         private static readonly DateTime runTime = DateTime.Now;
-        private static readonly StreamWriter file = new StreamWriter("history.txt");
         private static readonly string voicesFileName = "voices.xml";
         private static int answerPosibility = 2;
         private static int huiPosibility = 1;
@@ -48,10 +48,30 @@ namespace MoreBot
 
 
         private static Settings Settings = new Settings();
+        private static SerializableDictionary<long, string> Chats = new SerializableDictionary<long, string>();
+
+        private static void InitChats()
+        {
+            Chats[-1001147938733] = "itRevolution";
+            Chats[-1001144984487] = "More Squad";
+            Chats[-1001286647952] = "Very big deals";
+            Chats[-276412551] = "SectaGricka";
+            Chats[-1001128367512] = "Frnds.Chat";
+            Chats[-220866796] = "Trainees";
+        }
+
+
+        private static void SendToAll(string message)
+        {
+            foreach (var id in Chats.Keys)
+            {
+                Bot.SendTextMessageAsync(id, message);
+            }
+        }
+
         private static void Main()
         {
-            Console.OutputEncoding = Encoding.UTF8;
-            Console.InputEncoding = Encoding.Unicode;
+            InitChats();
             Bot.OnMessage += BotOnMessage;
             Bot.OnCallbackQuery += OnBotCallbackQuery;
             VoiceSerializer = new XmlSerializer(typeof(Settings));
@@ -59,7 +79,10 @@ namespace MoreBot
             {
                 ReadSettings();
             }
-            catch {}
+            catch (Exception ex)
+            {
+                log.Error(ex);
+            }
 
             Bot.StartReceiving();
             while (true)
@@ -90,7 +113,7 @@ namespace MoreBot
             }
             catch (Exception ex)
             {
-                file.WriteLine(ex);
+                log.Error(ex);
             }
         }
 
@@ -107,9 +130,9 @@ namespace MoreBot
 
 		private static async void OnText(MessageEventArgs e)
 		{
-			Console.WriteLine(e.Message.Date + "  |  " + e.Message.Text + " from " + e.Message.From.FirstName + "  " + e.Message.From.LastName);
-			file.WriteLine(e.Message.Text + "  |  " + e.Message.Date + " | " + e.Message.From.FirstName + "  " + e.Message.From.LastName + " = " + e.Message.From.Id);
-			if (e.Message.Text.ToLower().Contains("удали"))
+			log.Info(e.Message.Text + " | " + e.Message.From.FirstName + "  " + e.Message.From.LastName + "(" + e.Message.From.Id + ") chatId:"+ e.Message.Chat.Id + " (" + (!string.IsNullOrEmpty(e.Message.Chat.Title) ? e.Message.Chat.Title : e.Message.Chat.Username) + ")");
+
+            if (e.Message.Text.ToLower().Contains("удали"))
 			{
                 int toRemove;
 
@@ -178,7 +201,8 @@ namespace MoreBot
 10) погода - поточна погода у Вінниці
 11) 2 * 3 + (23 - 2)^3 = - таке я вмію рахувати
 12) можу якось відповісти на рандомне повідомлення
-13) реагую на слова 'триста', 'співпадіння?', 'хуй', 'лисий', 'секс', 'омг', 'ізі', 'нет', 'бухати', 'макс'");
+13) анекдот - спробую шутканути"
+);
             }
             else if (e.Message.Text.ToLower().Contains("обізви"))
 			{
@@ -194,7 +218,7 @@ namespace MoreBot
 						using (var stream = new MemoryStream(GetSpeach(damn).Result))
 						{
 							stream.Seek(0, SeekOrigin.Begin);
-							var x = Bot.SendAudioAsync(e.Message.Chat.Id, new FileToSend("speech.mp3", stream), damn, 10, "Гріша", damn);
+							var x = Bot.SendVoiceAsync(e.Message.Chat.Id, new FileToSend("speech.mp3", stream), damn, 10);
 
 
 							while (x.Status == TaskStatus.WaitingForActivation)
@@ -239,6 +263,9 @@ namespace MoreBot
 			{
 				var text = string.Join(" ", e.Message.Text.ToLower().Split(' ').Where(x => x != "скажи"));
 
+                if (string.IsNullOrEmpty(text))
+                    return;
+
 				long chatId = e.Message.Chat.Id;
 
 				if (text.Contains("вморе"))
@@ -255,7 +282,7 @@ namespace MoreBot
 				using (var stream = new MemoryStream(GetSpeach(text).Result))
 				{
 					stream.Seek(0, SeekOrigin.Begin);
-					var x = Bot.SendAudioAsync(chatId, new FileToSend("speech.mp3", stream), "", 10, "Гріша", text);
+					var x = Bot.SendVoiceAsync(chatId, new FileToSend("speech.mp3", stream), "", 10);
 
 
 					while (x.Status == TaskStatus.WaitingForActivation)
@@ -274,7 +301,16 @@ namespace MoreBot
 			else if (e.Message.Text.ToLower().Split(' ').Contains("відосік"))
 			{
 				var text = string.Join(" ", e.Message.Text.ToLower().Split(' ').Where(x => x != "відосік"));
-				Bot.SendTextMessageAsync(e.Message.Chat.Id, GetVideo(text).Result);
+                var link = GetVideo(text).Result;
+                if(string.IsNullOrEmpty(link))
+                {
+                    Bot.SendTextMessageAsync(e.Message.Chat.Id, "що ща брєд, нема таких відосів");
+                }
+                else
+                {
+                    Bot.SendTextMessageAsync(e.Message.Chat.Id, GetVideo(text).Result);
+                }
+                
 			}
 			else if (e.Message.Text.ToLower().Contains("погода"))
 			{
@@ -284,12 +320,17 @@ namespace MoreBot
 			{
 				Bot.SendTextMessageAsync(e.Message.Chat.Id, "отсоси у тракториста");
 			}
-			else if (e.Message.Text.ToLower().EndsWith(" ="))
+			else if (e.Message.Text.ToLower().EndsWith("="))
 			{
-				Bot.SendTextMessageAsync(
-					e.Message.Chat.Id,
-					GetCalc(e.Message.Text.ToLower().Substring(0, e.Message.Text.Length - 2)).Result
-					);
+                var calc = GetCalc(e.Message.Text.ToLower().Substring(0, e.Message.Text.Length - 1)).Result;
+                if (!string.IsNullOrEmpty(calc))
+                {
+                    Bot.SendTextMessageAsync(e.Message.Chat.Id, calc);
+                }
+                else
+                {
+                    Bot.SendTextMessageAsync(e.Message.Chat.Id, "Не по мені задачка, сам рішай цю дічь");
+                }
 			}
 			else if (e.Message.Text.ToLower().EndsWith("совпадение?") || e.Message.Text.ToLower().EndsWith("співпадіння?"))
 			{
@@ -301,12 +342,25 @@ namespace MoreBot
 			}
 			else if (e.Message.Text.ToLower().Contains("анекдот"))
 			{
-				Bot.SendTextMessageAsync(e.Message.Chat.Id, "Лизав мужик пизду.");
+                var anekdot = GetAnecdot().Result;
+                if(!string.IsNullOrEmpty(anekdot))
+                {
+                    Bot.SendTextMessageAsync(e.Message.Chat.Id, anekdot);
+                }
+                else
+                {
+                    Bot.SendTextMessageAsync(e.Message.Chat.Id, "У мене нема настрою для анекдоту, розважай себе сам.");
+                }
 			}
 
 			else if (e.Message.Text.ToLower().Split(' ').Contains("gif"))
 			{
 				var tag = string.Join(" ", e.Message.Text.ToLower().Split(' ').Where(x => x != "gif"));
+                if(GetGif(tag).Result == null)
+                {
+                    Bot.SendTextMessageAsync(e.Message.Chat.Id, "Сорі чувак, у мене таких гіфок немає :(");
+                    return;
+                }
 				using (var stream = new MemoryStream(GetGif(tag).Result))
 				{
 					stream.Seek(0, SeekOrigin.Begin);
@@ -540,6 +594,10 @@ namespace MoreBot
             .header("Accept", "application/json")
             .asJson<string>();
             var json = (JObject)JsonConvert.DeserializeObject(response.Body);
+            if (!json["data"].HasValues)
+            {
+                return null;
+            }
             var data = json["data"]["fixed_height_downsampled_url"].Value<string>();
             using (var client = new HttpClient())
             {
@@ -599,6 +657,10 @@ namespace MoreBot
                 }
                 else
                 {
+                    if(searchListResponse.Items.Count == 0)
+                    {
+                        return null;
+                    }
                     videoID = searchListResponse.Items[0].Id.VideoId;
                 }
             }
@@ -639,19 +701,52 @@ namespace MoreBot
 
         static async Task<string> GetCalc(string expression)
         {
-            using (var client = new HttpClient())
+            try
             {
-                using (var response = await client.GetAsync("https://newton.now.sh/simplify/" + expression))
+                using (var client = new HttpClient())
                 {
-                    using (var content = response.Content)
+                    using (var response = await client.GetAsync("https://newton.now.sh/simplify/" + expression))
                     {
-                        var myContent = await content.ReadAsStringAsync();
-                        var data = (JObject)JsonConvert.DeserializeObject(myContent);
-                        var result = data["result"].Value<string>();
-                        return expression + " = " + result;
+                        using (var content = response.Content)
+                        {
+                            var myContent = await content.ReadAsStringAsync();
+                            var data = (JObject) JsonConvert.DeserializeObject(myContent);
+                            var result = data["result"].Value<string>();
+                            return expression + " = " + result;
+                        }
                     }
                 }
             }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        static async Task<string> GetAnecdot()
+        {
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    using (var response = await client.GetAsync(@"http://umorili.herokuapp.com/api/get?num=50&name=bash"))
+                    {
+                        using (var content = response.Content)
+                        {
+                            var myContent = await content.ReadAsStringAsync();
+                            var data = (JArray)JsonConvert.DeserializeObject(myContent);
+                            JToken token = data.SelectToken(string.Format("$.[{0}].elementPureHtml", random.Next(data.Count)));
+                            var value = token as JValue;
+                            return value.Value<string>().Replace(@"<br />", "").Replace(@"&quot;", "");
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+            
         }
 
         private static bool Can(int percent)
